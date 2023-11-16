@@ -1,6 +1,6 @@
 rm(list=ls())
 
-## LibrerÌas
+## Librer√≠as
 
 library(caret)
 library(tidyverse)
@@ -8,7 +8,6 @@ library(patchwork)
 
 
 training <- read.csv("pml-training.csv")
-testing <- read.csv("pml-testing.csv")
 
 # exactly according to the specification (Class A), 
 # throwing the elbows to the front (Class B), 
@@ -26,13 +25,13 @@ training %>%
 
 ##Identificamos las columnas a eliminar
 ## Quitamos las columnas con NA
-## Quitamos las columnas que son caracteres pq sÛlo est·n presentes si window=yes y tienen muchos datos errÛneos 
+## Quitamos las columnas que son caracteres pq s√≥lo est√°n presentes si window=yes y tienen muchos datos err√≥neos 
 
 which(colMeans(is.na(training))>0) -> quitar
 which(sapply(training, class) == "character")  -> quitar_2
 
 
-## Vemos la distribuciÛn de los timestamp, X y New window con los datos, habr· que quitarlos pq est·n ordenadas por fecha.
+## Vemos la distribuci√≥n de los timestamp, X y New window con los datos, habr√° que quitarlos pq est√°n ordenadas por fecha.
 
 featurePlot(x = training[,c(1,3:4,7)], 
             y = training$classe, 
@@ -42,7 +41,7 @@ featurePlot(x = training[,c(1,3:4,7)],
 
 
 quitar_3 <- c(1, 3:5, 7)
-## Quitamos las columnas seleccionadas y la X que es un Ìndice.
+## Quitamos las columnas seleccionadas y la X que es un √≠ndice.
 
 training[, -c(quitar, quitar_2, quitar_3)]-> training_wk
 str(training_wk)
@@ -54,7 +53,7 @@ inTrain = createDataPartition(training_wk$classe, p = 0.7, list = FALSE)
 training_wk_entr = training_wk[ inTrain,]
 training_wk_test = training_wk[-inTrain,]
 
-# Comprobamos la distribuciÛn
+# Comprobamos la distribuci√≥n
 
 nrow(training_wk_entr) -> todo
 training_wk_entr %>%
@@ -64,7 +63,7 @@ training_wk_entr %>%
 ggplot(graf_1, aes(x=classe, y=`n()` , fill=classe))+
   geom_col() +
   geom_text(label = round(graf_1$`n()/todo`,2), vjust = -0.5)+
-  ggtitle("DistribuciÛn entrenamiento\n")+
+  ggtitle("Distribuci√≥n entrenamiento\n")+
   theme_classic()+
   theme(legend.position = "none", axis.title = element_blank())-> p1
   
@@ -76,13 +75,13 @@ training_wk_test %>%
 ggplot(graf_2, aes(x=classe, y=`n()` , fill=classe))+
   geom_col() +
   geom_text(label = round(graf_2$`n()/todo`,2), vjust = -0.5) +
-  ggtitle("DistribuciÛn test\n")+
+  ggtitle("Distribuci√≥n test\n")+
   theme_classic()+
   theme(legend.position = "none", axis.title = element_blank())-> p2
 
 p1+p2
 
-#### modelo ·rbol de decisiÛn ####
+#### modelo √°rbol de decisi√≥n ####
 
 set.seed(2212)
 modelo_rpart <- train(classe ~ ., method = "rpart", data = training_wk_entr)
