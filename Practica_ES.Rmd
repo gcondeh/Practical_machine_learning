@@ -1,0 +1,190 @@
+---
+title: "Aprendizaje automático práctico (Jonh Hopkins)"
+author: "GCH"
+date: "20-11-2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+library(tidyverse)
+library(patchwork)
+
+training <- read.csv("pml-training.csv")
+testing <- read.csv("pml-testing.csv")
+
+
+```
+
+# Objetivo
+
+Clasificación y predicción de la calidad del ejercicio físico en función de datos obtenidos de dispositivos que monitorizan la actividad. Los datos se han recopilado y compartido por [Human Activity Recognition](http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har), concretamente los relativos al levantamiento de pesas, obtenidos a partir de acelerómetros situados en el cinturón, el antebrazo, el brazo y mancuerna de 6 participantes. Los ejercicios se realizaron de 5 formas diferentes:
+
+-   De acuerdo con la especificación (Clase A)
+
+-   Llevando los codos hacia el frente (Clase B)
+
+-   Levantando la mancuerna solo hasta la mitad (Clase C)
+
+-   Bajando la mancuerna solo hasta la mitad (Clase D)
+
+-   Lanzando la cadera hacia el frente (Clase E).
+
+Se usará un algoritmo de clasificación supervisada sobre los datos de entrenamiento proporcionados, para generar un modelo que nos permita identificar la calidad del ejercicio realizado a partir de los datos que proporcionen los dispositivos durante el ejercicio.
+
+# Un primer vistazo a los datos
+
+Realizamos una primera inspección de los datos para detectar anomalías y sesgos.
+
+```{r vista_incial, }
+str(training[c(1:13,length(training))])
+
+```
+
+Vemos gráficamente una muestra de relaciones entre variables.
+
+```{r graf_dependecias, echo=FALSE}
+
+training %>%
+  mutate(classe = as.factor(classe)) %>%
+  mutate(user_name = as.factor(user_name)) %>%
+  mutate(cvtd_timestamp = dmy_hm(cvtd_timestamp)) -> training
+
+featurePlot(x = training[,c(1,3,7)], 
+            y = training$classe, 
+            plot = "pairs",
+            ## Add a key at the top
+             auto.key = list(columns = 5))
+
+```
+
+Parece necesario depurar el juego de datos de la siguiente forma:
+
+-   Algunas columnas serán factores: username, classe
+
+-   Las observaciones están ordenadas por classe y timestamp haciendo que el mejor indicador para clasificar sea la fecha, algo sin sentido. Quitamos las referencias al orden: X, window, timestamps, ...
+
+-   Algunas comunas están vacías, sólo están informadas en algún caso o tienen datos erróneos (DIV0). Las quitaremos quedándonos sólo con variables factoriales y numéricas.
+
+
+# Selección del modelo
+
+
+El modelo que usaremos será Random Forest. Permite la clasificación de un gran número de variables predictoras, con una gran precisión, baja varianza y poco sobreajuste. La información que proporciona de la importancia de las variables nos dará una idea de las características del modelo. Como negativo tendremos el tiempo de ejecución, asumible con el volumen de datos que usaremos.
+
+Comprobaremos los resultados con un juego de datos de pruebas que será el 30% de los datos proporcionados, elegidos aleatoriamente sobre la variable Classe y verificando una distribución consistente de esta variable con los datos de entrenamiento. 
+
+
+```{r prep_datos_1 , echo=FALSE}
+which(colMeans(is.na(training))>0) -> quitar
+which(sapply(training, class) == "character")  -> quitar_2
+quitar_3 <- c(1, 3:5, 7)
+training[, -c(quitar, quitar_2, quitar_3)]-> training_wk
+
+```
+
+```{r prep_datos_2, echo=TRUE}
+set.seed(2004)
+inTrain = createDataPartition(training_wk$classe, p = 0.7, list = FALSE)
+training_wk_entr = training_wk[ inTrain,]
+training_wk_test = training_wk[-inTrain,]
+
+```
+
+```{r prep_datos_4, echo=FALSE}
+nrow(training_wk_entr) -> todo
+training_wk_entr %>%
+  group_by(classe) %>%
+  summarise( n(), n()/todo) -> graf_1
+
+ggplot(graf_1, aes(x=classe, y=`n()` , fill=classe))+
+  geom_col() +
+  geom_text(label = round(graf_1$`n()/todo`,2), vjust = -0.5)+
+  ggtitle("Distribución entrenamiento\n")+
+  theme_classic()+
+  theme(legend.position = "none", axis.title = element_blank())-> p11
+  
+nrow(training_wk_test) -> todo
+training_wk_test %>%
+  group_by(classe) %>%
+  summarise( n(), n()/todo) -> graf_2
+
+ggplot(graf_2, aes(x=classe, y=`n()` , fill=classe))+
+  geom_col() +
+  geom_text(label = round(graf_2$`n()/todo`,2), vjust = -0.5) +
+  ggtitle("Distribución test\n")+
+  theme_classic()+
+  theme(legend.position = "none", axis.title = element_blank())-> p12
+
+p11+p12
+
+```
+
+
+Mejoraremos la precisión usando el método de validación cruzada K-fold (k=10).
+
+
+```{r ejecucion_modelo, echo=TRUE}
+
+set.seed(2212)
+modelo_rf <- train(classe ~ ., method = "rf", data = training_wk_entr, trControl = trainControl(method = "cv", number = 10))
+
+modelo_rf
+
+```
+
+
+# Resultados
+  
+La precisión que obtenemos es mayor del 99%, empleando 29 predictores de 53 y 500 árboles de decisión.
+  
+
+```{r resultado_1}
+
+modelo_rf$final
+
+```
+
+
+Podemos ver gráficamente como evoluciona el error con el número de árboles que conforman el modelo. Datos que podríamos usar eventualmente para ajustar el modelo.
+
+
+
+```{r resultado_2, echo = FALSE}
+
+plot(modelo_rf$finalModel, main="Error en función del número de árboles empleados")
+
+```
+
+
+Ahora comprobamos nuestro modelo sobre los datos de prueba, que habíamos apartado previamente, y así comprobar la fiabilidad de lo realizado. El resultado obtenido mantiene una precisión superior al 99% alineado con los datos que ya teníamos y haciéndonos pensar que muy mal no lo habremos hecho.
+
+
+```{r resultado_3}
+predic_rf <- predict(modelo_rf, newdata = training_wk_test)
+
+confusionMatrix(predic_rf, training_wk_test$classe)
+```
+
+
+Por último revisamos la importancia de los predictores a la hora de hacer las estimaciones. Llama la atención que los principales predictores se refieren a los ángulos de Euler del cinturón (como varía la orientación del cinturón sobre su propio sistema de referencia) y los datos del acelerómetro de la mancuerna. 
+
+
+```{r importancia_var, echo=FALSE}
+plot(varImp(modelo_rf), top = 10, main = "Top Predictores por importancia")
+
+```
+  
+Revisamos la relación de los predictores mas importantes entre sí para identificar posibles sesgos que no hallamos podido apreciar. Yo no veo nada llamativo.
+  
+ 
+```{r importancia_var_2, echo=FALSE}
+featurePlot(x = training_wk_entr[,c(2,4,42,40)], 
+            y = training_wk_entr$classe, 
+            plot = "pairs",
+            ## Add a key at the top
+            auto.key = list(columns = 5)) 
+```
+
+
