@@ -2,7 +2,9 @@
 title: "Practical Machine Learning (Jonh Hopkins)"
 author: "GCH (+Google translate)"
 date: "20-11-2023"
-output: html_document
+output: 
+  md_document:
+    variant: markdown_github
 ---
 
 ```{r setup, include=FALSE}
